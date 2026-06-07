@@ -1,1 +1,41 @@
+name: Deploy Orbital Sentinel Website to S3
 
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::721717798563:role/github-actions-deploy
+          aws-region: us-east-1
+
+      - name: Get bucket name from Parameter Store
+        run: |
+          BUCKET_NAME=$(aws ssm get-parameter \
+            --name /orbital-land-classifier/s3-bucket \
+            --with-decryption \
+            --query "Parameter.Value" \
+            --output text)
+
+          echo "BUCKET_NAME=$BUCKET_NAME" >> $GITHUB_ENV
+
+      - name: Deploy frontend to S3
+        run: |
+          aws s3 sync ./ s3://$BUCKET_NAME --delete \
+            --exclude ".git/*" \
+            --exclude ".github/*" \
+            --exclude "README.md"
